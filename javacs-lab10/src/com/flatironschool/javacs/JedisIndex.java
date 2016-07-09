@@ -9,6 +9,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 
+import org.jsoup.nodes.Node;
+import org.jsoup.nodes.TextNode;
 import org.jsoup.select.Elements;
 
 import redis.clients.jedis.Jedis;
@@ -68,7 +70,8 @@ public class JedisIndex {
 	 */
 	public Set<String> getURLs(String term) {
         // FILL THIS IN!
-		return null;
+        Set<String> urls = jedis.smembers(urlSetKey(term));
+		return urls;
 	}
 
     /**
@@ -79,11 +82,16 @@ public class JedisIndex {
 	 */
 	public Map<String, Integer> getCounts(String term) {
         // FILL THIS IN!
-		return null;
+        Map<String,Integer> counts = new HashMap<String,Integer>();
+        Set<String> urls = getURLs(term);
+		for (String url: urls) {
+			counts.put(url,getCount(url, term));
+		}
+		return counts;
 	}
 
     /**
-	 * Returns the number of times the given term appears at the given URL.
+	 * Returns the number off times the given term appears at the given URL.
 	 * 
 	 * @param url
 	 * @param term
@@ -91,7 +99,8 @@ public class JedisIndex {
 	 */
 	public Integer getCount(String url, String term) {
         // FILL THIS IN!
-		return null;
+        String urlK = termCounterKey(url);
+        return new Integer(jedis.hget(urlK,term));
 	}
 
 
@@ -103,8 +112,23 @@ public class JedisIndex {
 	 */
 	public void indexPage(String url, Elements paragraphs) {
         // FILL THIS IN!
+		TermCounter termc = new TermCounter(url);
+		termc.processElements(paragraphs);
+		Transaction transaction = jedis.multi();
+		String urlK = termCounterKey(url);
+		transaction.del(urlK);
+		Set<String> terms = termc.keySet();
+		for(String term: terms)
+		{
+			transaction.sadd(urlSetKey(term),url);
+			Integer count =  termc.get(term);
+			transaction.hset(urlK,term,count.toString());
+		}
+		transaction.exec();		
+
 	}
 
+	
 	/**
 	 * Prints the contents of the index.
 	 * 
